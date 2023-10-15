@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,7 +25,7 @@ public class TaskController {
 
   @Autowired
   private ITaskRepository taskRepository;
-  
+
   @PostMapping("/")
   public ResponseEntity<?> create(@RequestBody TaskModel taskModel, HttpServletRequest request) {
     var userId = request.getAttribute("userId");
@@ -32,16 +33,35 @@ public class TaskController {
 
     var currentDate = LocalDateTime.now();
     if (currentDate.isAfter(taskModel.getStartAt()) || currentDate.isAfter(taskModel.getEndAt())) {
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("A data de início e a data de término devem ser maior do que a data atual");
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body("A data de início e a data de término devem ser maior do que a data atual");
     }
 
     if (taskModel.getEndAt().isBefore(taskModel.getStartAt())) {
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("A data de início deve ser menor do que a data de término");
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body("A data de início deve ser menor do que a data de término");
     }
 
     var task = this.taskRepository.save(taskModel);
 
     return ResponseEntity.status(HttpStatus.CREATED).body(task);
+  }
+
+  @GetMapping("/{id}")
+  public ResponseEntity<?> findById(@PathVariable UUID id, HttpServletRequest request) {
+    var task = this.taskRepository.findById(id).orElse(null);
+
+    if (task == null) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Tarefa não encontrada");
+    }
+
+    var userId = request.getAttribute("userId");
+
+    if (!task.getUserId().equals(userId)) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Usuário não tem permissão para acessar essa tarefa");
+    }
+
+    return ResponseEntity.status(HttpStatus.OK).body(task);
   }
 
   @GetMapping("/")
@@ -56,11 +76,11 @@ public class TaskController {
   @PutMapping("/{id}")
   public ResponseEntity<?> update(@RequestBody TaskModel taskModel, @PathVariable UUID id, HttpServletRequest request) {
     var task = this.taskRepository.findById(id).orElse(null);
-    
+
     if (task == null) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Tarefa não encontrada");
     }
-    
+
     var userId = request.getAttribute("userId");
 
     if (!task.getUserId().equals(userId)) {
@@ -72,6 +92,25 @@ public class TaskController {
     var updatedTask = this.taskRepository.save(task);
 
     return ResponseEntity.status(HttpStatus.OK).body(updatedTask);
+  }
+
+  @DeleteMapping("/{id}")
+  public ResponseEntity<?> delete(@PathVariable UUID id, HttpServletRequest request) {
+    var task = this.taskRepository.findById(id).orElse(null);
+
+    if (task == null) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Tarefa não encontrada");
+    }
+
+    var userId = request.getAttribute("userId");
+
+    if (!task.getUserId().equals(userId)) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Usuário não tem permissão para deletar essa tarefa");
+    }
+
+    this.taskRepository.delete(task);
+
+    return ResponseEntity.status(HttpStatus.OK).body(null);
   }
 
 }
